@@ -13,10 +13,10 @@ The Reachy Home Assistant needs to remember information about family members to 
 4. **Semantic memory**: General knowledge about the household
 
 ### Key Requirements
-- Remember that Cam prefers to be reminded about homework after snack
+- Remember that Nico prefers to be reminded about homework after snack
 - Know that Patrick has a recurring Tuesday meeting
 - Recall that last week there was a discussion about the science project
-- Learn patterns like "Reese usually forgets lunch on Mondays"
+- Learn patterns like "Izzy usually forgets lunch on Mondays"
 
 ## Decision
 
@@ -53,9 +53,9 @@ The Reachy Home Assistant needs to remember information about family members to 
 | Type | Storage | Retention | Example |
 |------|---------|-----------|---------|
 | Working | In-memory | Session only | "We're discussing homework" |
-| Episodic | PostgreSQL + vector | Permanent (with decay) | "Helped Cam with math 3/15" |
-| Semantic | pgvector | Permanent | "Cam likes dinosaurs" |
-| Procedural | PostgreSQL | Permanent | "Reminder pattern for Reese" |
+| Episodic | PostgreSQL + vector | Permanent (with decay) | "Helped Nico with math 3/15" |
+| Semantic | pgvector | Permanent | "Nico likes dinosaurs" |
+| Procedural | PostgreSQL | Permanent | "Reminder pattern for Izzy" |
 
 ### Schema Design
 

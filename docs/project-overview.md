@@ -46,13 +46,13 @@ The Reachy Home Assistant is a household assistant designed for a family of four
 
 ### Morning Routine
 1. Reachy recognizes Patrick entering the kitchen
-2. "Good morning, Patrick! You have a 9 AM standup and Cam has soccer practice at 4."
+2. "Good morning, Patrick! You have a 9 AM standup and Nico has soccer practice at 4."
 3. Patrick asks about the weather
 4. Reachy provides forecast and suggests appropriate clothing for the kids
 
 ### After School
 1. Kids arrive home, Reachy greets each by name
-2. "Welcome home, Cam! How was school? Remember, you have a math worksheet due tomorrow."
+2. "Welcome home, Nico! How was school? Remember, you have a math worksheet due tomorrow."
 3. Tracks homework completion
 4. Reminds about chores at appropriate times
 

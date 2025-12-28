@@ -20,7 +20,7 @@ This document describes the primary users of the Reachy Home Assistant system. U
 ### Needs from Reachy
 - **Schedule coordination**: "What's on the calendar today?"
 - **Quick briefings**: Morning summary of family schedule, weather, reminders
-- **Task delegation**: "Remind Cam about his homework at 4pm"
+- **Task delegation**: "Remind Nico about his homework at 4pm"
 - **Hands-free interaction**: Voice commands while working
 - **Status checks**: "Did the kids finish their chores?"
 
@@ -37,7 +37,7 @@ This document describes the primary users of the Reachy Home Assistant system. U
 
 ---
 
-## Leah (Mom)
+## Catherine (Mom)
 
 ### Demographics
 - **Age**: 40s
@@ -71,7 +71,7 @@ This document describes the primary users of the Reachy Home Assistant system. U
 
 ---
 
-## Cam (Son)
+## Nico (Son)
 
 ### Demographics
 - **Age**: 8 years old
@@ -112,7 +112,7 @@ This document describes the primary users of the Reachy Home Assistant system. U
 
 ---
 
-## Reese (Daughter)
+## Izzy (Daughter)
 
 ### Demographics
 - **Age**: 6 years old
@@ -120,10 +120,10 @@ This document describes the primary users of the Reachy Home Assistant system. U
 - **Interests**: Art, crafts, animals, playing pretend
 
 ### Daily Routine
-- **Morning**: Similar to Cam, but needs more help getting ready
-- **School**: Elementary school (shorter day than Cam)
+- **Morning**: Similar to Nico, but needs more help getting ready
+- **School**: Elementary school (shorter day than Nico)
 - **Afternoon**: Creative play, learning activities
-- **Evening**: Family time, earlier bedtime than Cam
+- **Evening**: Family time, earlier bedtime than Nico
 
 ### Needs from Reachy
 - **Gentle reminders**: Kind prompts for routine tasks
@@ -190,9 +190,9 @@ Different mode. Reachy should:
 | User | Greeting Style | Response Length | Proactive Level |
 |------|---------------|-----------------|-----------------|
 | Patrick | Professional | Concise | Medium |
-| Leah | Warm | Moderate | High |
-| Cam | Fun/Playful | Short-Medium | Medium |
-| Reese | Gentle/Sweet | Short | Low-Medium |
+| Catherine | Warm | Moderate | High |
+| Nico | Fun/Playful | Short-Medium | Medium |
+| Izzy | Gentle/Sweet | Short | Low-Medium |
 | Unknown | Neutral/Helpful | Medium | Low |
 
 ---

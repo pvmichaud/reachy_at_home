@@ -49,7 +49,7 @@ class MemoryStore:
         # Store a memory
         await store.remember(
             user_id=user.id,
-            content="Cam finished his math homework",
+            content="Nico finished his math homework",
             memory_type="observation",
             importance=0.7
         )
