@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reachy-home-assistant"
+version = "0.1.0"
+description = "A household assistant combining a web app with Reachy Mini robot"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Patrick", email = "patrick@example.com"}
+]
+
+[project.scripts]
+reachy-assistant = "assistant.main:run"
+reachy-api = "api.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
