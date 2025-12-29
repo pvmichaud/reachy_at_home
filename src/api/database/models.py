@@ -3,14 +3,15 @@ SQLAlchemy ORM models for database tables.
 
 Defines:
 - Users table
+- FaceEmbeddings table (for face recognition)
 - Events (calendar) table
 - Tasks table
 - Messages table
 - Memories table (with vector support)
 """
 
-from sqlalchemy import Column, String, DateTime, Float, Boolean, ForeignKey, Text, Enum
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy import Column, String, DateTime, Float, Boolean, ForeignKey, Text, Enum, Integer, LargeBinary
+from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
 from sqlalchemy.orm import declarative_base, relationship
 from pgvector.sqlalchemy import Vector
 from datetime import datetime
@@ -40,6 +41,26 @@ class User(Base):
     events = relationship("Event", back_populates="user")
     tasks = relationship("Task", back_populates="assignee")
     memories = relationship("Memory", back_populates="user")
+    face_embeddings = relationship("FaceEmbedding", back_populates="user")
+
+
+class FaceEmbedding(Base):
+    """Face encoding for recognition.
+
+    Stores 128-dimensional face encodings from face_recognition library.
+    Multiple encodings per user for robustness (different angles, lighting).
+    """
+    __tablename__ = "face_embeddings"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    encoding = Column(ARRAY(Float), nullable=False)  # 128-dim face_recognition encoding
+    source_image = Column(String(500))  # Optional: path to source image
+    quality_score = Column(Float)  # Optional: face detection confidence
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", back_populates="face_embeddings")
 
 
 class Event(Base):

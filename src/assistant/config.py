@@ -24,7 +24,8 @@ class Settings(BaseSettings):
 
     # Reachy
     reachy_host: str = "localhost"
-    reachy_port: int = 8000
+    reachy_port: int = 8000  # API port for motors/status
+    reachy_camera_port: int = 8081  # MJPEG bridge for camera frames
 
     # Application behavior
     log_level: str = "INFO"
