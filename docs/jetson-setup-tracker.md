@@ -73,6 +73,16 @@
 | face_recognition (dlib) | ✅ Done | Replacement for InsightFace |
 | sentence-transformers | ✅ Done | all-MiniLM-L6-v2 |
 
+### Camera Access (MJPEG Bridge)
+| Task | Status | Notes |
+|------|--------|-------|
+| MJPEG bridge on Reachy RPi | ✅ Done | `rpi_daemon_bridge.py` running on RPi |
+| Camera client on Jetson | ✅ Done | HTTP requests to port 8081 |
+| Face recognition integration | ⏳ Pending | Connect camera client to face.py |
+| Systemd service for bridge | ⏳ Pending | Auto-start on RPi boot |
+
+See [ADR-007](adr/ADR-007-camera-access.md) for architecture details.
+
 ### Testing
 | Task | Status | Notes |
 |------|--------|-------|
@@ -81,6 +91,7 @@
 | Whisper transcription test | ⏳ Pending | |
 | Face recognition test | ⏳ Pending | |
 | Reachy connection test | ⏳ Pending | |
+| Camera bridge test | ⏳ Pending | Verify MJPEG stream works |
 | Full integration test | ⏳ Pending | |
 
 ---
@@ -126,6 +137,15 @@ make && sudo make install
 **Workaround**: Using `resemblyzer` library instead (simpler speaker embeddings, no torchaudio dependency)
 **Impact**: None — resemblyzer provides speaker identification capabilities
 **Note**: pyannote.audio has more advanced features (diarization); can revisit if needed
+
+### 7. Reachy Camera Access / GStreamer Incompatibility
+**Issue**: Reachy SDK uses WebRTC via `gst-plugins-rs` which requires GStreamer 1.20+, but Jetson ships with 1.16.3
+**Attempts**:
+- `aiortc`: DTLS handshake failures
+- `webrtcbin`: Promise callback issues in asyncio/GLib environment
+- SDK's `GstSignallingConsumer`: Same promise failures
+**Workaround**: MJPEG HTTP bridge on Reachy's RPi (see [ADR-007](adr/ADR-007-camera-access.md))
+**Impact**: None — MJPEG works reliably with 50-100ms latency
 
 ---
 
@@ -235,4 +255,4 @@ htop
 
 ---
 
-*Last updated: 2024-12-28*
+*Last updated: 2024-12-29*

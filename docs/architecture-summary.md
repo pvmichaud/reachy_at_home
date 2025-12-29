@@ -44,12 +44,14 @@ This document provides a high-level overview of the system architecture. For det
 │  └─────────────────────────────────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────────────────────────────────┘
          │                          │                          │
+         │ HTTP/MJPEG               │                          │
          ▼                          ▼                          ▼
 ┌─────────────────┐      ┌─────────────────┐      ┌─────────────────┐
 │  Reachy Mini    │      │  Web App        │      │  External APIs  │
 │  (Robot)        │      │  (React)        │      │  - Claude       │
-└─────────────────┘      └─────────────────┘      │  - Cozi         │
-                                                  └─────────────────┘
+│  - MJPEG Bridge │      └─────────────────┘      │  - Cozi         │
+│  - Motors (SDK) │                               └─────────────────┘
+└─────────────────┘
 ```
 
 ## Component Details
@@ -60,11 +62,12 @@ The core service running continuously on the Jetson:
 
 | Component | Technology | Purpose |
 |-----------|------------|---------|
-| Face Recognition | InsightFace (buffalo_l) | Identify family members by face |
-| Voice Recognition | pyannote.audio | Identify speakers by voice |
+| Camera Access | MJPEG Bridge (HTTP) | Receive frames from Reachy's camera |
+| Face Recognition | face_recognition (dlib) | Identify family members by face |
+| Voice Recognition | resemblyzer | Identify speakers by voice |
 | Wake Word | OpenWakeWord | Detect "Hey Reachy" |
 | STT | faster-whisper | Convert speech to text |
-| TTS | Kokoro | Convert text to speech |
+| TTS | edge-tts | Convert text to speech |
 | Conversation | Custom + Claude | Manage dialogue flow |
 | Memory | PostgreSQL + pgvector | Store and retrieve memories |
 
@@ -141,13 +144,15 @@ memories (id, user_id, content, embedding vector(384), importance)
 
 | Model | Size | GPU Memory | Inference Time |
 |-------|------|------------|----------------|
-| InsightFace buffalo_l | ~500MB | ~1GB | ~50ms/face |
-| faster-whisper small | ~500MB | ~1GB | ~100ms/5s audio |
-| pyannote embedding | ~100MB | ~500MB | ~50ms |
-| Kokoro TTS | ~500MB | ~1GB | ~200ms/sentence |
+| face_recognition (dlib) | ~30MB | CPU only | ~100ms/face |
+| faster-whisper small | ~500MB | CPU only* | ~200ms/5s audio |
+| resemblyzer | ~100MB | CPU only | ~50ms |
+| edge-tts | Cloud | N/A | ~100ms/sentence |
 | MiniLM-L6-v2 (embeddings) | ~80MB | ~200MB | ~10ms |
 
-**Total GPU Memory**: ~3-4GB (within Jetson's 16GB)
+*Note: faster-whisper runs on CPU due to CTranslate2 not having CUDA support for aarch64.
+
+**Total GPU Memory**: ~1GB (most processing on CPU due to ARM constraints)
 
 ## Deployment
 
@@ -162,11 +167,12 @@ nginx.service             → Web frontend
 
 ### Network
 
-| Port | Service |
-|------|---------|
-| 3000 | API (FastAPI) |
-| 80 | Web frontend (nginx) |
-| 5432 | PostgreSQL (localhost only) |
+| Port | Service | Location |
+|------|---------|----------|
+| 3000 | API (FastAPI) | Jetson |
+| 80 | Web frontend (nginx) | Jetson |
+| 5432 | PostgreSQL (localhost only) | Jetson |
+| 8081 | MJPEG Camera Bridge | Reachy RPi |
 
 ## Key Decisions
 
@@ -175,6 +181,7 @@ nginx.service             → Web frontend
 | Database | PostgreSQL + pgvector | One system for structured + vector data |
 | LLM | Claude API | Quality, safety, tool use |
 | Speech | Local models | Privacy, latency |
+| Camera Access | MJPEG over HTTP | Avoids GStreamer upgrade, simple protocol |
 | Deployment | systemd | Simple, reliable, native GPU access |
 
 See individual [ADR documents](adr/) for detailed rationale.
