@@ -6,8 +6,14 @@ Responsibilities:
 - Generate 128-dimensional face encodings
 - Match against enrolled family members
 - Handle enrollment of new faces
+- Preserve reference images for future library migration
 
 Uses dlib's face recognition model via face_recognition library.
+
+Performance notes (tested on Jetson Orin NX):
+- Processing time: ~1-2 seconds per 1080x1920 frame
+- Confidence: 65-80% typical for good matches
+- Threshold: 0.6 works well for family recognition
 """
 
 import numpy as np
@@ -15,6 +21,8 @@ from typing import Optional, Tuple, List, Dict
 from pathlib import Path
 import logging
 import json
+import cv2
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -40,24 +48,30 @@ class FaceRecognizer:
         recognizer = FaceRecognizer()
         await recognizer.initialize()
 
-        # Enroll a family member
-        success = recognizer.enroll("patrick", face_images)
+        # Enroll a family member (saves images for future reference)
+        success = recognizer.enroll("patrick", face_images, save_images=True)
 
         # Recognize from frame
         user_id, confidence = recognizer.recognize(frame)
     """
 
-    def __init__(self, threshold: float = 0.6, encodings_path: Optional[Path] = None):
+    def __init__(
+        self,
+        threshold: float = 0.6,
+        data_dir: Optional[Path] = None
+    ):
         """
         Initialize face recognizer.
 
         Args:
             threshold: Distance threshold for matching (lower = stricter)
                       Default 0.6 is recommended by face_recognition library
-            encodings_path: Path to save/load enrolled face encodings
+            data_dir: Directory for face data (encodings + reference images)
         """
         self.threshold = threshold
-        self.encodings_path = encodings_path or Path("data/face_encodings.json")
+        self.data_dir = Path(data_dir) if data_dir else Path("data/faces")
+        self.encodings_path = self.data_dir / "encodings.json"
+        self.images_dir = self.data_dir / "images"
         self.enrolled_faces: Dict[str, List[np.ndarray]] = {}
         self._initialized = False
 
@@ -66,6 +80,10 @@ class FaceRecognizer:
         if not FACE_RECOGNITION_AVAILABLE:
             logger.error("Cannot initialize - face_recognition library not available")
             return
+
+        # Ensure directories exist
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        self.images_dir.mkdir(parents=True, exist_ok=True)
 
         # Load saved encodings if they exist
         if self.encodings_path.exists():
@@ -96,21 +114,68 @@ class FaceRecognizer:
                 for user_id, encodings in self.enrolled_faces.items()
             }
             with open(self.encodings_path, 'w') as f:
-                json.dump(data, f)
+                json.dump(data, f, indent=2)
             logger.info(f"Saved encodings for {len(self.enrolled_faces)} users")
         except Exception as e:
             logger.error(f"Failed to save encodings: {e}")
 
-    def enroll(self, user_id: str, images: List[np.ndarray]) -> bool:
+    def _select_largest_face(self, face_locations: List[Tuple]) -> Tuple:
+        """
+        Select the largest face when multiple are detected.
+
+        Args:
+            face_locations: List of (top, right, bottom, left) tuples
+
+        Returns:
+            Location of largest face by area
+        """
+        if len(face_locations) == 1:
+            return face_locations[0]
+
+        # Calculate area for each face
+        def face_area(loc):
+            top, right, bottom, left = loc
+            return (bottom - top) * (right - left)
+
+        return max(face_locations, key=face_area)
+
+    def _ensure_rgb(self, image: np.ndarray) -> np.ndarray:
+        """
+        Ensure image is in RGB format.
+        Camera typically returns BGR, face_recognition expects RGB.
+
+        Args:
+            image: Input image (BGR or RGB)
+
+        Returns:
+            Image in RGB format
+        """
+        # Check if likely BGR by looking at channel order
+        # This is a heuristic - caller should ideally specify format
+        if len(image.shape) == 3 and image.shape[2] == 3:
+            # Assume BGR from OpenCV/camera, convert to RGB
+            return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        return image
+
+    def enroll(
+        self,
+        user_id: str,
+        images: List[np.ndarray],
+        save_images: bool = True,
+        is_bgr: bool = True
+    ) -> bool:
         """
         Enroll a user with multiple face images.
 
         Extracts face encodings from each image and stores them.
         Multiple encodings per user improve recognition robustness.
+        Reference images are saved for potential future library migration.
 
         Args:
             user_id: Unique identifier for the user
-            images: List of face images (RGB format, as from camera)
+            images: List of face images
+            save_images: Whether to save reference images to disk
+            is_bgr: If True, convert from BGR to RGB (default for camera images)
 
         Returns:
             True if at least one face was successfully enrolled
@@ -120,22 +185,40 @@ class FaceRecognizer:
             return False
 
         encodings = []
+        user_images_dir = self.images_dir / user_id
+
+        if save_images:
+            user_images_dir.mkdir(parents=True, exist_ok=True)
+
         for i, image in enumerate(images):
+            # Convert to RGB if needed
+            rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) if is_bgr else image
+
             # Detect face locations
-            face_locations = face_recognition.face_locations(image)
+            face_locations = face_recognition.face_locations(rgb_image)
 
             if len(face_locations) == 0:
                 logger.warning(f"No face found in image {i+1} for user {user_id}")
                 continue
 
+            # Select largest face if multiple detected
             if len(face_locations) > 1:
-                logger.warning(f"Multiple faces in image {i+1}, using first one")
+                logger.warning(f"Multiple faces in image {i+1}, using largest")
+                face_location = self._select_largest_face(face_locations)
+                face_locations = [face_location]
 
-            # Get encoding for first face found
-            face_encodings = face_recognition.face_encodings(image, face_locations[:1])
+            # Get encoding for selected face
+            face_encodings = face_recognition.face_encodings(rgb_image, face_locations)
             if face_encodings:
                 encodings.append(face_encodings[0])
                 logger.debug(f"Encoded face {i+1} for user {user_id}")
+
+                # Save reference image (in original BGR for compatibility)
+                if save_images:
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    image_path = user_images_dir / f"sample_{i+1}_{timestamp}.jpg"
+                    cv2.imwrite(str(image_path), image)
+                    logger.debug(f"Saved reference image: {image_path}")
 
         if not encodings:
             logger.error(f"No faces could be encoded for user {user_id}")
@@ -148,12 +231,17 @@ class FaceRecognizer:
         logger.info(f"Enrolled user {user_id} with {len(encodings)} face encodings")
         return True
 
-    def recognize(self, frame: np.ndarray) -> Tuple[Optional[str], float]:
+    def recognize(
+        self,
+        frame: np.ndarray,
+        is_bgr: bool = True
+    ) -> Tuple[Optional[str], float]:
         """
         Recognize a face in a camera frame.
 
         Args:
-            frame: Camera frame (RGB format)
+            frame: Camera frame
+            is_bgr: If True, convert from BGR to RGB (default for camera images)
 
         Returns:
             Tuple of (user_id or None, confidence score 0-1)
@@ -166,13 +254,21 @@ class FaceRecognizer:
             logger.debug("No enrolled faces to match against")
             return None, 0.0
 
+        # Convert to RGB if needed
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) if is_bgr else frame
+
         # Detect faces
-        face_locations = face_recognition.face_locations(frame)
+        face_locations = face_recognition.face_locations(rgb_frame)
         if not face_locations:
             return None, 0.0
 
-        # Get encoding for first face
-        face_encodings = face_recognition.face_encodings(frame, face_locations[:1])
+        # Select largest face if multiple
+        if len(face_locations) > 1:
+            face_location = self._select_largest_face(face_locations)
+            face_locations = [face_location]
+
+        # Get encoding for selected face
+        face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
         if not face_encodings:
             return None, 0.0
 
@@ -185,48 +281,62 @@ class FaceRecognizer:
         for user_id, user_encodings in self.enrolled_faces.items():
             # Compare against all encodings for this user
             distances = face_recognition.face_distance(user_encodings, unknown_encoding)
-            min_distance = np.min(distances)
+            min_distance = float(np.min(distances))
 
             if min_distance < best_distance:
                 best_distance = min_distance
                 best_match = user_id
 
         # Check threshold
+        confidence = max(0.0, 1.0 - best_distance)
+
         if best_distance <= self.threshold:
-            confidence = 1.0 - best_distance  # Convert distance to confidence
             logger.debug(f"Recognized {best_match} with confidence {confidence:.2f}")
             return best_match, confidence
         else:
             logger.debug(f"Best match {best_match} below threshold (distance={best_distance:.2f})")
-            return None, 1.0 - best_distance
+            return None, confidence
 
-    def detect_faces(self, frame: np.ndarray) -> List[Dict]:
+    def detect_faces(self, frame: np.ndarray, is_bgr: bool = True) -> List[Dict]:
         """
         Detect all faces in a frame without identification.
 
         Args:
-            frame: Camera frame (RGB format)
+            frame: Camera frame
+            is_bgr: If True, convert from BGR to RGB
 
         Returns:
             List of detected faces with bounding boxes:
-            [{"top": int, "right": int, "bottom": int, "left": int}, ...]
+            [{"top": int, "right": int, "bottom": int, "left": int, "area": int}, ...]
         """
         if not FACE_RECOGNITION_AVAILABLE:
             return []
 
-        face_locations = face_recognition.face_locations(frame)
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) if is_bgr else frame
+        face_locations = face_recognition.face_locations(rgb_frame)
 
         return [
-            {"top": top, "right": right, "bottom": bottom, "left": left}
+            {
+                "top": top,
+                "right": right,
+                "bottom": bottom,
+                "left": left,
+                "area": (bottom - top) * (right - left)
+            }
             for (top, right, bottom, left) in face_locations
         ]
 
-    def get_encoding(self, frame: np.ndarray) -> Optional[np.ndarray]:
+    def get_encoding(
+        self,
+        frame: np.ndarray,
+        is_bgr: bool = True
+    ) -> Optional[np.ndarray]:
         """
         Get face encoding from a frame (for database storage).
 
         Args:
-            frame: Camera frame (RGB format) containing exactly one face
+            frame: Camera frame containing a face
+            is_bgr: If True, convert from BGR to RGB
 
         Returns:
             128-dimensional face encoding, or None if no face found
@@ -234,11 +344,18 @@ class FaceRecognizer:
         if not FACE_RECOGNITION_AVAILABLE:
             return None
 
-        face_locations = face_recognition.face_locations(frame)
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) if is_bgr else frame
+        face_locations = face_recognition.face_locations(rgb_frame)
+
         if not face_locations:
             return None
 
-        face_encodings = face_recognition.face_encodings(frame, face_locations[:1])
+        # Select largest face if multiple
+        if len(face_locations) > 1:
+            face_location = self._select_largest_face(face_locations)
+            face_locations = [face_location]
+
+        face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
         if face_encodings:
             return face_encodings[0]
         return None
@@ -259,6 +376,10 @@ class FaceRecognizer:
 
         distance = face_recognition.face_distance([encoding1], encoding2)[0]
         return distance <= self.threshold
+
+    def get_enrolled_users(self) -> List[str]:
+        """Get list of enrolled user IDs."""
+        return list(self.enrolled_faces.keys())
 
     @property
     def is_available(self) -> bool:
